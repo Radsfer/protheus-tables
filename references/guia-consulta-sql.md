@@ -60,14 +60,17 @@ existe, mas pode estar defasada em registro alterado por carga direta.
 |---|---|
 | SE2 → SA2 (fornecedor) | `A2_COD = E2_FORNECE AND A2_LOJA = E2_LOJA` |
 | SE2 → CN9 (contrato) | `CN9_NUMERO = E2_MDCONTR AND CN9_REVISA = E2_MDREVIS` |
-| SE2 → CXN (planilha/cronograma da medição) | `CXN_CONTRA = E2_MDCONTR AND CXN_REVISA = E2_MDREVIS AND CXN_NUMPLA = E2_MDPLANI AND CXN_CRONOG = E2_MDCRON` |
+| SE2 → CXN (planilha/cronograma da medição) | `CXN_CONTRA = E2_MDCONTR AND CXN_REVISA = E2_MDREVIS AND CXN_NUMMED = E2_MEDNUME AND CXN_NUMPLA = E2_MDPLANI AND CXN_CRONOG = E2_MDCRON AND CXN_PARCEL = E2_MDPARCE` |
 | SE2 → CTT (centro de custo) | `CTT_CUSTO = E2_CCUSTO` |
 | SE1 → SA1 (cliente) | `A1_COD = E1_CLIENTE AND A1_LOJA = E1_LOJA` |
 | SRD (histórico de movimentos) → CTT | `CTT_CUSTO = RD_CC` |
 
-E2_MDCONTR, E2_MDREVIS, E2_MDPLANI e E2_MDCRON são o "Cronograma Financeiro do
-Contrato" gravado no próprio título — é por eles que um título a pagar aponta
-para contrato e medição, e não por E2_PEDIDO ou E2_NUM.
+Os campos `E2_MD*` são o "Cronograma Financeiro do Contrato" gravado no próprio
+título: é por eles que um título a pagar aponta para contrato e medição, e não
+por `E2_PEDIDO` ou `E2_NUM`. O par medição/parcela é `E2_MEDNUME` (número da
+medição originadora) e `E2_MDPARCE` (parcela do cronograma) — sem eles a junção
+com a CXN multiplica linhas, porque a chave da CXN é
+`CXN_FILIAL+CXN_CONTRA+CXN_REVISA+CXN_NUMMED+CXN_NUMPLA+CXN_PARCEL`.
 
 Não inclua `FILIAL` nas junções de cadastro sem conferir antes:
 
