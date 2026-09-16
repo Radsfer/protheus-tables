@@ -8,6 +8,10 @@ Protheus/TOTVS: tabelas, campos, índices, descrições, help, relações e trig
 - **Sem instalação de dependências.** O script de busca é Node puro
   (`scripts/query.mjs`), e qualquer harness de agente já tem Node.
 - **Só baixar uma pasta.** Igual qualquer skill: joga na pasta de skills e pronto.
+- **Resistente a queda do site.** A base do sempreju é pública, feita por um dev
+  da TOTVS para quebrar um galho — não é um serviço com garantia. Como o clone
+  fica em disco, o dicionário continua consultável se o site sair do ar ou se a
+  máquina estiver sem internet.
 
 ## Para quem vai USAR (não técnico)
 
@@ -54,12 +58,29 @@ Descompacte/baixe o repositório e coloque a pasta `protheus-tables` em:
 
 ## Como a busca funciona (uso direto, sem agente)
 
+Use o caminho absoluto do script para rodar de qualquer diretório:
+
 ```sh
-node scripts/query.mjs search "CN9_NUMERO"        # busca exata por campo
-node scripts/query.mjs search "condição de pagamento"   # busca por palavras
-node scripts/query.mjs table "CN9"                # conteúdo completo da tabela
-node scripts/query.mjs list "CN"                  # todas as tabelas CN*
+node scripts/query.mjs search "CN9_NUMERO"              # busca exata por campo
+node scripts/query.mjs search "condicao de pagamento"   # busca por palavras
+node scripts/query.mjs search "contratos"               # acha a tabela pelo nome
+node scripts/query.mjs table "CN9"                      # conteúdo completo da tabela
+node scripts/query.mjs list "CN"                        # todas as tabelas CN*
+node scripts/query.mjs list "S" --limit 50              # teto da listagem
 ```
+
+A busca ignora acentos e maiúsculas. O resultado sai **ordenado por relevância**,
+não na ordem do arquivo: código de tabela exato, nome canônico exato, tabela
+mestra clássica do conceito (vários módulos repetem nome — "Clientes" está em
+SA1, SS2 e NUH), campo pertencente à tabela (`CN9_NUMERO` pertence à CN9) e, por
+fim, nome/título contendo os termos. Empates caem para a tabela mestra e depois
+para o dicionário mais completo.
+
+Duas anotações aparecem no fim da saída: `Dica:` quando a consulta foi resolvida
+para uma tabela (sugerindo `table`), e `[atenção: ...]` quando outro resultado
+tem nome praticamente igual — aí a escolha depende do módulo do usuário.
+
+Códigos de saída: `0` encontrou, `1` nada encontrado, `2` uso inválido.
 
 ## Para o mantenedor: como regenerar o índice
 
@@ -84,5 +105,6 @@ Depois dê commit e push — os usuários só precisam refazer o clone/atualizar
 ## Proveniência dos dados
 
 Os dados são extraídos de <https://sempreju.com.br/tabelas_protheus> e de
-exportações do dicionário de dados do Protheus (SX2/SX3/SIX). Uso interno;
-verifique a política da sua empresa antes de publicar dados customizados.
+exportações do dicionário de dados do Protheus (SX2/SX3/SIX). A base é pública e
+comunitária; mesmo assim, tabelas e campos customizados da sua empresa podem não
+estar nela — verifique a política da empresa antes de publicar dados próprios.

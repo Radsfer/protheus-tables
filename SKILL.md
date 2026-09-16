@@ -12,24 +12,58 @@ instalar nada (Node puro, zero dependências).
 
 ## Como consultar
 
-Use SEMPRE o script de busca antes de responder. Ele está em `scripts/query.mjs`
-e roda com Node (já presente em qualquer Claude Code / DSH):
+Use SEMPRE o script de busca antes de responder. Ele é `scripts/query.mjs` e
+roda com Node. **Chame pelo caminho absoluto**: o caminho relativo só funciona
+se o diretório atual for o da skill, e o normal é não ser.
+
+O DSH informa o diretório base ao carregar esta skill; nesta máquina é
+`C:\Users\rafael.ferreira\.dsh\skills\protheus-tables`. Ou seja:
 
 ```sh
-node scripts/query.mjs search "<termos>"     # busca livre
-node scripts/query.mjs table "<código>"      # conteúdo completo (ex: CN9)
-node scripts/query.mjs list "<prefixo>"      # lista por prefixo (ex: CN)
+node "C:\Users\rafael.ferreira\.dsh\skills\protheus-tables\scripts\query.mjs" search "<termos>"
 ```
 
-Exemplos:
-- `node scripts/query.mjs search "CN9_NUMERO"`
-- `node scripts/query.mjs search "condição de pagamento"`
-- `node scripts/query.mjs table "CN9"`
-- `node scripts/query.mjs list "CN"`
+- `search "<termos>" [--limit N]` — busca livre por código de tabela, código de
+  campo ou palavra da descrição. Limite padrão: 20.
+- `table "<código>"` — conteúdo completo da tabela (ex: CN9).
+- `list "<prefixo>" [--limit N]` — lista tabelas por prefixo (ex: CN). Limite
+  padrão: 200, com aviso do que ficou de fora.
 
-Para código de campo exato (ex: `CN9_NUMERO`), use `search` com o código entre
-aspas — o índice resolve por token exato. Se o termo não for encontrado, o
-script faz fallback por substring automaticamente.
+Códigos de saída: `0` encontrou, `1` nada encontrado, `2` uso inválido (ex:
+`list` sem prefixo). Use isso para confirmar a consulta em vez de assumir.
+
+Exemplos:
+
+```sh
+node "...\scripts\query.mjs" search "CN9_NUMERO"
+node "...\scripts\query.mjs" search "condicao de pagamento"
+node "...\scripts\query.mjs" table "CN9"
+node "...\scripts\query.mjs" list "CN"
+```
+
+A busca ignora acentos e maiúsculas, então `condicao` acha "Condição". Prefira
+termos sem acento quando chamar de um shell onde o encoding possa deturpar o
+argumento. Para código de campo exato (`CN9_NUMERO`), o índice resolve por token
+e devolve a tabela dona em primeiro lugar; o script imprime uma linha `Dica:`
+confirmando qual é.
+
+## Como o resultado é ordenado
+
+A ordem não é a do arquivo. O ranking usa, do mais forte para o mais fraco:
+código de tabela exato, nome canônico (X2_NOME) exato, tabela mestra clássica do
+conceito, campo pertencente à tabela (o prefixo do campo é o código da tabela),
+nome/título contendo os termos. Empates caem para a tabela mestra e depois para
+o dicionário mais completo.
+
+Leia as anotações que o script imprime no fim:
+
+- `Dica: ... table "XX"` — a consulta foi resolvida para uma tabela; use `table`
+  para o conteúdo completo.
+- `[atenção: ... nome praticamente igual ...]` — o mesmo conceito existe em
+  vários módulos (`SA1`, `SS2` e `NUH` são "Clientes"; `CT1`, `CS3` e `SI1` são
+  "Plano de Contas"). Nesse caso **não** afirme que a tabela é a primeira sem
+  confirmar: prefira a que casa com o módulo do usuário (o prefixo dos campos no
+  SQL, no ETL ou no dicionário do projeto) e cite as alternativas.
 
 ## Convenções (prefixos comuns)
 
@@ -37,25 +71,65 @@ O prefixo do campo é o código da tabela. Exemplos:
 
 | Tabela | Descrição |
 |---|---|
-| CN9 | Contratos |
-| CN1 | Tipos de Contrato |
-| SE4 | Condições de Pagamento |
-| SE1 | Contas a Receber |
-| SE2 | Contas a Pagar |
 | SA1 | Clientes |
 | SA2 | Fornecedores |
-| SB1 | Descrição Genérica do Produto |
+| SB1 | Produtos (nome no índice: "Descrição Genérica do Produto") |
+| SB2 | Saldos Físico e Financeiro |
 | SC5 | Pedidos de Venda |
+| SC6 | Itens dos Pedidos de Venda |
+| SD1 | Itens das NF de Entrada |
+| SD2 | Itens de Venda da NF |
+| SD3 | Movimentações Internas |
+| SE1 | Contas a Receber |
+| SE2 | Contas a Pagar |
+| SE4 | Condições de Pagamento |
 | SED | Naturezas |
+| SF1 | Cabeçalho das NF de Entrada |
+| SF2 | Cabeçalho das NF de Saída |
+| SX5 | Tabelas (genéricas) |
+| CT1 | Plano de Contas |
+| CT2 | Lançamentos Contábeis |
+| CTT | Centro de Custo |
+| CN9 | Contratos |
+| CN1 | Tipos de Contrato |
 | A00 | Território x Nível do Agrup. |
 
 Não tente memorizar a lista completa — use `list <prefixo>` ou `search` para
 descobrir. Campos customizados costumam usar prefixo `X_` ou `Z_`. Campos de
 sistema terminam em `_` (ex: `D_E_L_E_T_`, `R_E_C_N_O_`).
 
-## Observações
+## Limitações
 
-- Repositório: https://github.com/Radsfer/protheus-tables
+- **`SX2`, `SX3` e `SIX` não existem como páginas** neste índice: ele foi
+  extraído delas (cada tabela mostra "Tabela(SX2)... Indices(SIX)"). Se pedirem
+  a estrutura do dicionário em si, diga isso em vez de inventar conteúdo. Das
+  SX, só `SX5` está indexada.
+- **Nomes abreviados.** Alguns nomes canônicos encurtam palavras ("NF" em vez de
+  "nota fiscal", "Contr.Oper."), então uma consulta por conceito pode não casar
+  com o nome. Nesse caso busque pelo código (`SF1`) ou pelo nome que aparece no
+  código do usuário.
+- **Campos e tabelas internas podem não estar na base.** O índice é público; se
+  um campo `X_`/`Z_` ou uma tabela do Protheus da empresa não aparecer, isso não
+  prova que não existe — diga que não está na base pública e confirme no
+  dicionário interno.
+- **Snapshot de 19/08/2025** (data que cada página traz). Para dados novos,
+  atualize o clone.
+- `table` em tabelas grandes devolve muita coisa (`SA1` ≈ 81 KB); quando o
+  interesse é um campo específico, use `search "<CODIGO_DO_CAMPO>"`. O script
+  avisa quando a saída passa de 20.000 caracteres.
 - Somente leitura: o script nunca altera os dados.
-- O índice fica em `data/` (meta.json.gz, inv.json.gz, texts.json.gz) e é
-  carregado sob demanda; a primeira busca numa sessão pode levar alguns segundos.
+
+## Por que a cópia local importa
+
+O índice é público, mantido por um dev da TOTVS para quebrar um galho — e
+justamente por isso não é um serviço com garantia: se o site sair do ar, a
+consulta por lá para. Como esta skill mantém o clone em disco, o conhecimento
+continua disponível offline. Vale a mesma lógica para ambientes sem internet.
+
+## Atualizar o índice
+
+```sh
+git -C "C:\Users\rafael.ferreira\.dsh\skills\protheus-tables" pull
+```
+
+O repositório e as melhorias de busca estão documentados em `README.md`.
