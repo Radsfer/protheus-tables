@@ -64,6 +64,8 @@ Use o caminho absoluto do script para rodar de qualquer diretório:
 node scripts/query.mjs search "CN9_NUMERO"              # busca exata por campo
 node scripts/query.mjs search "condicao de pagamento"   # busca por palavras
 node scripts/query.mjs search "contratos"               # acha a tabela pelo nome
+node scripts/query.mjs fields "SE2"                     # lista os campos da tabela
+node scripts/query.mjs fields "SE2" E2_SALDO            # definição de um campo
 node scripts/query.mjs table "CN9"                      # conteúdo completo da tabela
 node scripts/query.mjs list "CN"                        # todas as tabelas CN*
 node scripts/query.mjs list "S" --limit 50              # teto da listagem

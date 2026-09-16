@@ -25,7 +25,10 @@ node "C:\Users\rafael.ferreira\.dsh\skills\protheus-tables\scripts\query.mjs" se
 
 - `search "<termos>" [--limit N]` — busca livre por código de tabela, código de
   campo ou palavra da descrição. Limite padrão: 20.
-- `table "<código>"` — conteúdo completo da tabela (ex: CN9).
+- `fields "<código>" [<campo>]` — lista os campos da tabela, um por linha. Com o
+  código de um campo, mostra a definição inteira. **Use isto antes de citar
+  qualquer campo numa query.**
+- `table "<código>"` — conteúdo completo da tabela (ex: CN9), com índices.
 - `list "<prefixo>" [--limit N]` — lista tabelas por prefixo (ex: CN). Limite
   padrão: 200, com aviso do que ficou de fora.
 
@@ -37,9 +40,16 @@ Exemplos:
 ```sh
 node "...\scripts\query.mjs" search "CN9_NUMERO"
 node "...\scripts\query.mjs" search "condicao de pagamento"
+node "...\scripts\query.mjs" fields "SE2"
+node "...\scripts\query.mjs" fields "SE2" E2_SALDO
 node "...\scripts\query.mjs" table "CN9"
 node "...\scripts\query.mjs" list "CN"
 ```
+
+**Nunca cite um campo que não apareceu em `fields`.** Campo lembrado de memória
+ou deduzido por analogia com outra tabela é a origem mais comum de query errada
+(a SE1 não tem o `E2_STATUS` da SE2). Se o campo não aparecer, diga que não está
+na base em vez de inventá-lo.
 
 A busca ignora acentos e maiúsculas, então `condicao` acha "Condição". Prefira
 termos sem acento quando chamar de um shell onde o encoding possa deturpar o
@@ -56,6 +66,15 @@ existir com esse nome.
 ```sh
 node "...\scripts\query.mjs" search "RD_DTREF"   # -> SRD (Histórico de Movimentos)
 ```
+
+## Escrever SQL sobre o Protheus
+
+Quando a tarefa for escrever, revisar ou explicar uma consulta (DBeaver, dbt,
+ETL, script Python), carregue `references/guia-consulta-sql.md` antes. Ele fixa o
+padrão do ambiente: nome físico da tabela (`dbo.SE2010` — o sufixo é da empresa),
+os filtros que mudam o resultado (`D_E_L_E_T_ = ' '`, `TRIM` nos `CHAR`, data
+`AAAAMMDD`, FILIAL de cadastro × de movimento), as junções já validadas
+(SE2→SA2, SE2→CN9, SE2→CXN, SE1→SA1) e o checklist antes de entregar.
 
 ## Como o resultado é ordenado
 
@@ -128,9 +147,9 @@ então não identificam nenhuma: a busca os ignora.
   dicionário interno.
 - **Snapshot de 19/08/2025** (data que cada página traz). Para dados novos,
   atualize o clone.
-- `table` em tabelas grandes devolve muita coisa (`SA1` ≈ 81 KB); quando o
-  interesse é um campo específico, use `search "<CODIGO_DO_CAMPO>"`. O script
-  avisa quando a saída passa de 20.000 caracteres.
+- `table` em tabelas grandes devolve muita coisa (`SA1` ≈ 81 KB); para listar ou
+  conferir campos use `fields`, que devolve só a lista. O script avisa quando a
+  saída de `table` passa de 20.000 caracteres.
 - Somente leitura: o script nunca altera os dados.
 
 ## Por que a cópia local importa

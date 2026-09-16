@@ -247,6 +247,73 @@ function listByPrefix(prefix) {
     .sort((a, b) => a.code.localeCompare(b.code));
 }
 
+// Seção "Campos(SX3)" da página, cortada nas seções seguintes.
+function fieldSection(text) {
+  const start = text.indexOf('Campos(SX3)');
+  if (start < 0) return '';
+  let end = text.length;
+  for (const marca of ['Abas(SXA)', 'Relacionamentos', 'Triggers', 'Tabelas(SX']) {
+    const i = text.indexOf(marca, start + 11);
+    if (i > 0 && i < end) end = i;
+  }
+  return text.slice(start + 11, end);
+}
+
+// Prefixo dos campos da tabela: SE2 -> E2_, CN9 -> CN9_ (tabela com S perde o S).
+function fieldPrefix(code) {
+  return (code.startsWith('s') ? code.slice(1) : code).toUpperCase() + '_';
+}
+
+// Uma definição de campo começa no código com espaço antes e texto depois.
+// Ocorrências dentro de expressão (#E2_X, M->E2_X, "E2_X", DTOS(E2_X)) ficam de fora.
+function parseFields(id) {
+  ensureTexts();
+  const sec = fieldSection(texts[id]);
+  if (!sec) return [];
+  const prefix = fieldPrefix(codes[id]);
+  const re = new RegExp(`(^|\\s)(${prefix}[A-Z0-9_]+)(?=\\s[A-Za-z0-9])`, 'g');
+  const marcas = [];
+  const vistos = new Set();
+  let m;
+  while ((m = re.exec(sec)) !== null) {
+    if (vistos.has(m[2])) continue;
+    vistos.add(m[2]);
+    marcas.push({ campo: m[2], at: m.index + m[1].length });
+  }
+  return marcas.map((mk, n) => {
+    const fim = n + 1 < marcas.length ? marcas[n + 1].at : sec.length;
+    return { campo: mk.campo, texto: sec.slice(mk.at, fim).replace(/\s+/g, ' ').trim() };
+  });
+}
+
+function printFields(code, filtro) {
+  ensureMeta();
+  const id = findByCode(code);
+  if (id < 0) {
+    console.log(`Tabela não encontrada: "${code}". Use "list <prefixo>" para ver as opções.`);
+    return false;
+  }
+  const campos = parseFields(id);
+  if (!campos.length) {
+    console.log(`${codes[id].toUpperCase()} não tem a seção Campos(SX3) nesta base.`);
+    return false;
+  }
+  const alvo = filtro ? normalize(filtro).toUpperCase() : null;
+  const lista = alvo ? campos.filter((c) => c.campo.includes(alvo)) : campos;
+  if (!lista.length) {
+    console.log(`Nenhum campo de ${codes[id].toUpperCase()} casa com "${filtro}".`);
+    return false;
+  }
+  console.log(`${codes[id].toUpperCase()} ${meta[id].t || ''} — ${lista.length} de ${campos.length} campo(s):\n`);
+  for (const c of lista) {
+    console.log(alvo ? `${c.campo} ${c.texto.slice(c.campo.length).trim()}` : `${c.campo.padEnd(16)} ${c.texto.slice(0, 108)}`);
+  }
+  if (!alvo) {
+    console.log(`\nDica: fields ${codes[id].toUpperCase()} <CODIGO> mostra um campo inteiro; table ${codes[id].toUpperCase()} traz índices e relações.`);
+  }
+  return true;
+}
+
 function printSearch(query, limit) {
   const { ids, terms, qAlnum, fallback, ausentes } = search(query, limit);
   if (!ids.length) {
@@ -326,12 +393,15 @@ function usage() {
 
 Uso (o caminho absoluto funciona de qualquer pasta):
   node "${SCRIPT_PATH}" search "<termos>" [--limit N]    busca livre (código, campo, palavra)
-  node "${SCRIPT_PATH}" table "<código>"                 conteúdo completo (ex: CN9)
-  node "${SCRIPT_PATH}" list "<prefixo>" [--limit N]     lista por prefixo (ex: CN)
+  node "${SCRIPT_PATH}" fields "<código>" [<campo>]       lista os campos da tabela
+  node "${SCRIPT_PATH}" table "<código>"                  conteúdo completo (ex: CN9)
+  node "${SCRIPT_PATH}" list "<prefixo>" [--limit N]      lista por prefixo (ex: CN)
 
 Exemplos:
   node "${SCRIPT_PATH}" search "CN9_NUMERO"
   node "${SCRIPT_PATH}" search "condicao de pagamento"
+  node "${SCRIPT_PATH}" fields "SE2"
+  node "${SCRIPT_PATH}" fields "SE2" E2_SALDO
   node "${SCRIPT_PATH}" table "CN9"
   node "${SCRIPT_PATH}" list "CN"
 
@@ -346,6 +416,12 @@ function main() {
     const q = args[1];
     if (!q) { usage(); process.exitCode = 2; return; }
     if (!printSearch(q, parseLimit(args, 20))) process.exitCode = 1;
+    return;
+  }
+  if (cmd === 'fields') {
+    const code = args[1];
+    if (!code) { usage(); process.exitCode = 2; return; }
+    if (!printFields(code, args[2])) process.exitCode = 1;
     return;
   }
   if (cmd === 'table') {
