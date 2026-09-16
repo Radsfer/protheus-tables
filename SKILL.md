@@ -47,6 +47,16 @@ argumento. Para código de campo exato (`CN9_NUMERO`), o índice resolve por tok
 e devolve a tabela dona em primeiro lugar; o script imprime uma linha `Dica:`
 confirmando qual é.
 
+O prefixo do campo também identifica a tabela, e em tabelas com S inicial o
+campo perde o S: `E2_PREFIXO` → SE2, `A1_COD` → SA1, `RD_DTREF` → SRD,
+`CT1_CONTA` → CT1, `CN9_NUMERO` → CN9. Quando o campo citado não está no índice,
+o script avisa: a tabela veio do prefixo, e o campo pode ser customizado ou não
+existir com esse nome.
+
+```sh
+node "...\scripts\query.mjs" search "RD_DTREF"   # -> SRD (Histórico de Movimentos)
+```
+
 ## Como o resultado é ordenado
 
 A ordem não é a do arquivo. O ranking usa, do mais forte para o mais fraco:
@@ -64,6 +74,9 @@ Leia as anotações que o script imprime no fim:
   "Plano de Contas"). Nesse caso **não** afirme que a tabela é a primeira sem
   confirmar: prefira a que casa com o módulo do usuário (o prefixo dos campos no
   SQL, no ETL ou no dicionário do projeto) e cite as alternativas.
+- `[atenção: ... não consta no índice ...]` — o campo consultado não aparece na
+  base; o resultado veio do prefixo do campo. Trate como campo a confirmar, não
+  como campo documentado.
 
 ## Convenções (prefixos comuns)
 
@@ -96,7 +109,8 @@ O prefixo do campo é o código da tabela. Exemplos:
 
 Não tente memorizar a lista completa — use `list <prefixo>` ou `search` para
 descobrir. Campos customizados costumam usar prefixo `X_` ou `Z_`. Campos de
-sistema terminam em `_` (ex: `D_E_L_E_T_`, `R_E_C_N_O_`).
+sistema terminam em `_` (`D_E_L_E_T_`, `R_E_C_N_O_`) e existem em toda tabela,
+então não identificam nenhuma: a busca os ignora.
 
 ## Limitações
 

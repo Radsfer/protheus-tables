@@ -17,6 +17,8 @@ const HUGE_TEXT = 20000;
 // Conectores que não ajudam a identificar uma tabela.
 const STOPWORDS = new Set(['de', 'da', 'do', 'dos', 'das', 'em', 'no', 'na', 'nos', 'nas',
   'os', 'as', 'um', 'uma', 'para', 'com', 'por', 'que']);
+// Flags de sistema presentes em toda tabela: não identificam nenhuma.
+const SYSTEM_TOKENS = new Set(['d_e_l_e_t_', 'r_e_c_n_o_', 'r_e_c_no']);
 // Tabelas mestras clássicas do dicionário. Vários módulos repetem o mesmo nome
 // canônico ("Clientes" em SA1/SS2/NUH, "Plano de Contas" em CT1/SI1/CS3,
 // "Contratos" em CN9/NJR/FSC), e nem sempre a maior é a clássica; esta lista só
@@ -36,7 +38,8 @@ function normalize(s) {
 }
 
 function tokenize(q) {
-  const all = (normalize(q).match(/[a-z0-9_\-]+/g) || []).filter((t) => t.length >= 2);
+  const all = (normalize(q).match(/[a-z0-9_\-]+/g) || [])
+    .filter((t) => t.length >= 2 && !SYSTEM_TOKENS.has(t));
   const useful = all.filter((t) => !STOPWORDS.has(t));
   return useful.length ? useful : all.filter((t) => t.length >= 3);
 }
@@ -112,7 +115,9 @@ function directHits(terms, qAlnum) {
   if (qAlnum) add(qAlnum);
   for (const t of terms) {
     const prefix = t.split('_')[0];
-    if (prefix && prefix !== t) add(prefix);
+    if (!prefix || prefix === t) continue;
+    add(prefix);
+    add('s' + prefix);
   }
   return out;
 }
@@ -151,7 +156,8 @@ function relevance(i, terms, qAlnum, phrase) {
   if (master && allName) score += 60000;
   for (const term of terms) {
     if (term === code) score += 20000;
-    if (term.startsWith(code + '_')) score += 15000;
+    const campo = ownsField(code, term);
+    if (campo) score += campo === 2 ? 15000 : 12000;
   }
   if (terms.length > 1 && allName) score += 2000;
   else if (terms.length > 1 && allInTitle) score += 1500;
@@ -165,6 +171,15 @@ function relevance(i, terms, qAlnum, phrase) {
 function masterRank(i) {
   const r = MASTER_TABLES.indexOf(codes[i]);
   return r < 0 ? MASTER_TABLES.length : r;
+}
+
+// O prefixo do campo indica a tabela: CN9_NUMERO -> CN9. Em tabelas com S
+// inicial o campo perde o S: E2_PREFIXO -> SE2, RD_DATPRF -> SRD. O prefixo
+// exato vale mais que o prefixo com S, para não preferir um homônimo (SN9).
+function ownsField(code, term) {
+  const base = term.split('_')[0];
+  if (base === code) return 2;
+  return 's' + base === code ? 1 : 0;
 }
 
 // Tamanho do texto da tabela, usado só em empate: entre nomes canônicos
@@ -182,6 +197,7 @@ function rank(ids, terms, query) {
   const entries = ids
     .map((i) => ({ i, score: relevance(i, terms, qAlnum, phrase) }))
     .sort((a, b) => b.score - a.score || masterRank(a.i) - masterRank(b.i) || a.i - b.i);
+  if (!entries.length) return [];
   const best = entries[0].score;
   const tied = entries.filter((e) => e.score === best);
   const topRank = masterRank(tied[0].i);
@@ -201,8 +217,9 @@ function search(query, limit) {
   ensureDerived();
   const terms = tokenize(query);
   const qAlnum = alnum(query);
-  if (!terms.length) return { ids: [], terms, qAlnum, fallback: false };
+  if (!terms.length) return { ids: [], terms, qAlnum, fallback: false, ausentes: [] };
   const arrays = terms.map((t) => inv[t] || []).filter((a) => a.length);
+  const ausentes = terms.filter((t) => t.includes('_') && !(inv[t] || []).length);
   let ids = [];
   let fallback = false;
   if (arrays.length === terms.length) ids = intersect(arrays);
@@ -211,7 +228,7 @@ function search(query, limit) {
     fallback = true;
   }
   const merged = [...new Set([...ids, ...directHits(terms, qAlnum)])];
-  return { ids: rank(merged, terms, query).slice(0, limit), terms, qAlnum, fallback };
+  return { ids: rank(merged, terms, query).slice(0, limit), terms, qAlnum, fallback, ausentes };
 }
 
 function findByCode(code) {
@@ -231,7 +248,7 @@ function listByPrefix(prefix) {
 }
 
 function printSearch(query, limit) {
-  const { ids, terms, qAlnum, fallback } = search(query, limit);
+  const { ids, terms, qAlnum, fallback, ausentes } = search(query, limit);
   if (!ids.length) {
     console.log(`Nenhum resultado para "${query}".`);
     return false;
@@ -243,11 +260,17 @@ function printSearch(query, limit) {
     if (m.s) console.log(`    ${m.s}`);
   });
   const top = codes[ids[0]];
-  const porCodigo = top === qAlnum || terms.some((t) => t.startsWith(top + '_'));
+  const porCodigo = top === qAlnum || terms.some((t) => ownsField(top, t));
   if (porCodigo) {
     console.log(`\nDica: node "${SCRIPT_PATH}" table "${top.toUpperCase()}" traz a tabela completa.`);
-    return true;
   }
+  // Campo citado que não está no índice: a tabela veio do prefixo, não do campo.
+  if (ausentes.length) {
+    console.log(`\n[atenção: ${ausentes.map((t) => t.toUpperCase()).join(', ')} não consta no índice.`
+      + ` A tabela ${top.toUpperCase()} veio do prefixo do campo — confirme o campo na saída de table,`
+      + ' ou é campo customizado (X_/Z_) fora da base pública.]');
+  }
+  if (porCodigo) return true;
   // Em consulta por nome, avise quando outro resultado tem nome praticamente
   // igual: o mesmo conceito existe em vários módulos (SA1/SS2/NUH = "Clientes")
   // e a escolha certa depende do módulo do usuário.
